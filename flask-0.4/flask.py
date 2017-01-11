@@ -5,7 +5,8 @@
 
     A microframework based on Werkzeug.  It's extensively documented
     and follows best practice patterns.
-    他被广泛的记录并且遵循最佳的实践模式
+    一个基于werkzeug的微框架，这是广为记载且遵循最佳的实践模式。
+    （Werkzeug是一个wsgi的工具包，作为web框架的底层库支持）
 
     :copyright: (c) 2010 by Armin Ronacher.
     :license: BSD, see LICENSE for more details.
@@ -128,13 +129,16 @@ class Session(SecureCookie):
         self['_permanent'] = bool(value)
 
     permanent = property(_get_permanent, _set_permanent)
-    del _get_permanent, _set_permanent
+    del _get_permanent, _set_permanent  # 删除这两个变量名对内存的引用，大概是防止外部引用
 
 
 class _NullSession(Session):
     """Class used to generate nicer error messages if sessions are not
     available.  Will still allow read-only access to the empty session
     but fail on setting.
+
+    如果sessions不可用时，这个类用来生成更好的error messages，
+    将仍然允许只读访问但不能设置空会话。
     """
 
     def _fail(self, *args, **kwargs):
@@ -142,7 +146,7 @@ class _NullSession(Session):
                            'key was set.  Set the secret_key on the '
                            'application to something unique and secret')
     __setitem__ = __delitem__ = clear = pop = popitem = \
-        update = setdefault = _fail
+        update = setdefault = _fail  # 所有的methods都被设置为抛出异常.
     del _fail
 
 
@@ -151,13 +155,19 @@ class _RequestContext(object):
     created at the beginning of the request and pushed to the
     `_request_ctx_stack` and removed at the end of it.  It will create the
     URL adapter and request object for the WSGI environment provided.
+
+    这个请求上下文包含了所有请求相关的信息。
+    请求上下文创建在请求开始时，并且推入'_request_ctx_stack'中，最后删除。
+    它将创建URL 适配器，并为 WSGI environment 提供 request 对象。
     """
 
     def __init__(self, app, environ):
         self.app = app
         self.url_adapter = app.url_map.bind_to_environ(environ)
         self.request = app.request_class(environ)
-        self.session = app.open_session(self.request)
+
+        # 会话(session) 实现：
+        self.session = app.open_session(self.request)  # 关键代码：session 请求上下文的 session 对象
         if self.session is None:
             self.session = _NullSession()
         self.g = _RequestGlobals()
@@ -809,7 +819,7 @@ class Flask(_PackageBoundObject):
 
     #: The class that is used for request objects.  See :class:`~flask.Request`
     #: for more information.
-    request_class = Request
+    request_class = Request  # 用于请求对象的类
 
     #: The class that is used for response objects.  See
     #: :class:`~flask.Response` for more information.
@@ -1112,6 +1122,12 @@ class Flask(_PackageBoundObject):
                     _request_ctx_stack.pop()
         return FlaskClient(self, self.response_class, use_cookies=True)
 
+    #
+    # 关键接口: 创建 or 打开一个 会话(session)
+    #   - 实现方式: 使用 cookie 实现
+    #   - 默认把全部session数据, 存入一个 cookie 中.
+    #   - 需要设置 attr:`secret_key`
+    #
     def open_session(self, request):
         """Creates or opens a new session.  Default implementation stores all
         session data in a signed cookie.  This requires that the
@@ -1525,9 +1541,27 @@ class Flask(_PackageBoundObject):
         return self.wsgi_app(environ, start_response)
 
 
+###################################################################
+#               全局变量 定义部分
+# 说明:
+#   - 关键部分
+#   - 请求上下文对象
+#   - 全局对象
+#
+###################################################################
+
+
 # context locals
 _request_ctx_stack = LocalStack()
-current_app = LocalProxy(lambda: _request_ctx_stack.top.app)
-request = LocalProxy(lambda: _request_ctx_stack.top.request)
-session = LocalProxy(lambda: _request_ctx_stack.top.session)
-g = LocalProxy(lambda: _request_ctx_stack.top.g)
+# current_app, request, session, g 都是一个LocalProxy.
+
+# 应用级上下文：
+#   - 应用级别：数据隔离，多个app之间，数据是相互隔离的
+#
+current_app = LocalProxy(lambda: _request_ctx_stack.top.app)  # 应用上下文: current_app
+g = LocalProxy(lambda: _request_ctx_stack.top.g)  # 应用上下文：g
+
+# 请求级上下文：
+#   - 请求级别：数据隔离，多个请求之间，数据是隔离开的
+request = LocalProxy(lambda: _request_ctx_stack.top.request)  # 请求上下文：request
+session = LocalProxy(lambda: _request_ctx_stack.top.session)  # 请求上下文：会话(session)
