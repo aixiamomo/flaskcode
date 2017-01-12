@@ -151,7 +151,10 @@ class _RequestContext(object):      # 请求上下文，在flask.request_context
         self.app = app
         self.url_adapter = app.url_map.bind_to_environ(environ)
         self.request = app.request_class(environ)
+
+        # 带上下文的 session 实现
         self.session = app.open_session(self.request)
+
         self.g = _RequestGlobals()
         self.flashes = None
 
@@ -162,23 +165,30 @@ class _RequestContext(object):      # 请求上下文，在flask.request_context
         # do not pop the request stack if we are in debug mode and an
         # exception happened.  This will allow the debugger to still
         # access the request object in the interactive shell.
+        # 如果在调试模式下发生异常，则不要弹出请求堆栈.。
+        # 这将允许调试器仍然能够访问交互式shell中的请求对象.。
         if tb is None or not self.app.debug:
             _request_ctx_stack.pop()
 
 
-def url_for(endpoint, **values):
+def url_for(endpoint, **values):  # 实现依赖：werkzeug.LocalStack模块
     """Generates a URL to the given endpoint with the method provided.
 
-    :param endpoint: the endpoint of the URL (name of the function)
+    使用给定的方法生成给定端点的URL
+
+    :param endpoint: the endpoint of the URL (name of the function)， url的端点（函数名）
     :param values: the variable arguments of the URL rule
     """
     return _request_ctx_stack.top.url_adapter.build(endpoint, values)
 
 
-def flash(message):
+def flash(message):  # 向页面 输出 一条 flash消息
     """Flashes a message to the next request.  In order to remove the
     flashed message from the session and to display it to the user,
     the template has to call :func:`get_flashed_messages`.
+
+    向下一个请求发送消息。为了从会话中删除闪烁的消息并将其显示给用户，
+    模板必须调用：func：`get_flashed_messages`。
 
     :param message: the message to be flashed.
     """
@@ -189,6 +199,10 @@ def get_flashed_messages():
     """Pulls all flashed messages from the session and returns them.
     Further calls in the same request to the function will return
     the same messages.
+
+    从session中拉取所有flashed消息，并返回它们
+    进一步调用相同的请求函数将返回相同的消息。
+
     """
     flashes = _request_ctx_stack.top.flashes
     if flashes is None:
@@ -197,21 +211,28 @@ def get_flashed_messages():
     return flashes
 
 
-def render_template(template_name, **context):
+def render_template(template_name, **context):  # 渲染模板页面: 通过查找 templates 目录
     """Renders a template from the template folder with the given
     context.
 
-    :param template_name: the name of the template to be rendered
+    使用给定的上下文从模板文件夹渲染模板。
+
+    :param template_name: the name of the template to be rendered 将被渲染的模板名称
     :param context: the variables that should be available in the
-                    context of the template.
+                    context of the template. 模板上下文中可用的变量.。
     """
+
+    # current_app : 文件结尾定义的 全局上下文对象
+    # 实现依赖 werkzeug
     current_app.update_template_context(context)
     return current_app.jinja_env.get_template(template_name).render(context)
 
 
-def render_template_string(source, **context):
+def render_template_string(source, **context):  # 渲染模板页面: 通过传入的模板字符串
     """Renders a template from the given template source string
     with the given context.
+
+    使用给定的上下文从模板源字符串渲染模板
 
     :param template_name: the sourcecode of the template to be
                           rendered
@@ -222,11 +243,13 @@ def render_template_string(source, **context):
     return current_app.jinja_env.from_string(source).render(context)
 
 
-def _default_template_ctx_processor():
+def _default_template_ctx_processor():  # 默认的模板上下文处理器
     """Default template context processor.  Injects `request`,
     `session` and `g`.
+
+    默认的模板上下文处理器。注入了'request', 'session', 'g'
     """
-    reqctx = _request_ctx_stack.top
+    reqctx = _request_ctx_stack.top  # 文件末尾定义的 全局上下文对象
     return dict(
         request=reqctx.request,
         session=reqctx.session,
@@ -234,7 +257,7 @@ def _default_template_ctx_processor():
     )
 
 
-def _get_package_path(name):
+def _get_package_path(name):  # 获取模块包的路径，在Flask()中引用
     """Returns the path to a package or cwd if that cannot be found."""
     try:
         return os.path.abspath(os.path.dirname(sys.modules[name].__file__))
@@ -242,16 +265,28 @@ def _get_package_path(name):
         return os.getcwd()
 
 
+###################################################################
+#                       核心功能接口
+#
+#
+#
+###################################################################
 class Flask(object):
     """The flask object implements a WSGI application and acts as the central
     object.  It is passed the name of the module or package of the
     application.  Once it is created it will act as a central registry for
     the view functions, the URL rules, template configuration and much more.
 
+    flask对象实现了一个 WSGI应用程序 并作为中心对象。
+    它传递应用程序的模块或包的名称。
+    一旦创建它，它将作为 视图函数，URL路由规则，模板配置等的 中央注册中心
+
     The name of the package is used to resolve resources from inside the
     package or the folder the module is contained in depending on if the
     package parameter resolves to an actual python package (a folder with
     an `__init__.py` file inside) or a standard module (just a `.py` file).
+
+    包的名称是用来解析资源
 
     For more information about resource loading, see :func:`open_resource`.
 
@@ -264,26 +299,30 @@ class Flask(object):
 
     #: the class that is used for request objects.  See :class:`~flask.request`
     #: for more information.
-    request_class = Request
+    request_class = Request     # 用于请求对象的类
 
     #: the class that is used for response objects.  See
     #: :class:`~flask.Response` for more information.
-    response_class = Response
+    response_class = Response   # 用于响应对象的类
 
     #: path for the static files.  If you don't want to use static files
     #: you can set this value to `None` in which case no URL rule is added
     #: and the development server will no longer serve any static files.
-    static_path = '/static'
+    static_path = '/static'     # 静态资源路径
 
     #: if a secret key is set, cryptographic components can use this to
     #: sign cookies and other things.  Set this to a complex random value
     #: when you want to use the secure cookie for instance.
-    secret_key = None
+    # 如果设置了密钥，加密组件可以用这个来签名cookie和其他东西。
+    # 如果要使用安全cookie, 请将其设置为复杂的随机值
+    secret_key = None           # 密钥
 
     #: The secure cookie uses this for the name of the session cookie
-    session_cookie_name = 'session'
+    # 安全cookie使用这个session cookie的名称
+    session_cookie_name = 'session'  # 安全cookie
 
     #: options that are passed directly to the Jinja2 environment
+    # 直接传递到jinja2 环境的选项
     jinja_options = dict(
         autoescape=True,
         extensions=['jinja2.ext.autoescape', 'jinja2.ext.with_']
@@ -295,27 +334,50 @@ class Flask(object):
         #: when an unhandled exception ocurrs and the integrated server
         #: will automatically reload the application if changes in the
         #: code are detected.
-        self.debug = False
+        #
+        # debug标志，设其为'True'来启用应用程序的调试
+        # 在调试模式下，当发生未处理的异常时，调试器将启动，并且如果检测到代码更改，
+        # 集成服务器自动重新加载应用程序
+        self.debug = False  # 调试模式开关
 
         #: the name of the package or module.  Do not change this once
         #: it was set by the constructor.
+        # 包或者模块的名称，一旦这个值被构造函数设置，就不要改变这个
+        #
+        # 注意:
+        #   - 这个参数,不是随便乱给的
+        #   - 要跟实际的 项目工程目录名对应,否则无法找到对应的工程
+        #   - 大多数时候都是__name__，所以你会看到实例化Flask时：app = Flask(__name__)
+        #
         self.package_name = package_name
 
         #: where is the app root located?
-        self.root_path = _get_package_path(self.package_name)
+        # app根位置所在
+        #
+        # 注意:
+        #   - 调用前面定义的 全局私有方法
+        #   - 依赖前面的传入参数, 通过该参数, 获取 项目工程源码根目录.
+        #
+        self.root_path = _get_package_path(self.package_name)  # 获取项目根目录
 
         #: a dictionary of all view functions registered.  The keys will
         #: be function names which are also used to generate URLs and
         #: the values are the function objects themselves.
         #: to register a view function, use the :meth:`route` decorator.
-        self.view_functions = {}
+        # 包含所有注册的视图函数的字典。
+        # keys 是函数名称，也用于生成URL，而value是函数对象。
+        # 要注册一个视图函数，使用：meth：`route`装饰器。
+        self.view_functions = {}    # 视图函数字典
 
         #: a dictionary of all registered error handlers.  The key is
         #: be the error code as integer, the value the function that
         #: should handle that error.
         #: To register a error handler, use the :meth:`errorhandler`
         #: decorator.
-        self.error_handlers = {}
+        # 包含所有注册的错误处理程序的字典。
+        # key 是错误代码，是一个整数，value是错误处理程序
+        # 要注册错误处理程序，使用 meth：`errorhandler`装饰器。
+        self.error_handlers = {}          # 错误处理程序字典
 
         #: a list of functions that should be called at the beginning
         #: of the request before request dispatching kicks in.  This
@@ -323,25 +385,35 @@ class Flask(object):
         #: getting hold of the currently logged in user.
         #: To register a function here, use the :meth:`before_request`
         #: decorator.
-        self.before_request_funcs = []
+        # 在请求分发前被调用的函数列表。
+        # 例如用来打开数据库连接或者获取当前已登陆的用户。
+        # 要在这里注册一个函数，使用：meth：`before_request`装饰器。
+        self.before_request_funcs = []   # 预处理
 
         #: a list of functions that are called at the end of the
-        #: request.  Tha function is passed the current response
+        #: request.  The function is passed the current response
         #: object and modify it in place or replace it.
         #: To register a function here use the :meth:`after_request`
         #: decorator.
-        self.after_request_funcs = []
+        # 在请求结束时调用的函数列表。
+        # 该函数传递当前响应对象并将其修改或替换它。
+        # 要在这里注册一个函数，使用：meth：`after_request`装饰器。
+        self.after_request_funcs = []   # 结束清理
 
         #: a list of functions that are called without arguments
         #: to populate the template context.  Each returns a dictionary
         #: that the template context is updated with.
         #: To register a function here, use the :meth:`context_processor`
         #: decorator.
+        # 无参数调用的函数列表，用于填充模板上下文的。 每个返回一个字典更新模板上下文。
+        # 要在这里注册一个函数，使用：meth:'context_processor'
+        # 下面默认添加了模板上下文处理器（注入模板中的全局对象）：request,session,g
         self.template_context_processors = [_default_template_ctx_processor]
 
-        self.url_map = Map()
+        # todo: 待深入
+        self.url_map = Map()            # 关键依赖：werkzeug.routing.Map
 
-        if self.static_path is not None:
+        if self.static_path is not None:    # 处理静态资源
             self.url_map.add(Rule(self.static_path + '/<filename>',
                                   build_only=True, endpoint='static'))
             if pkg_resources is not None:
@@ -441,8 +513,12 @@ class Flask(object):
         :attr:`secret_key` is set.
 
         :param request: an instance of :attr:`request_class`.
+
+        创建or打开一个新session，
+        默认实现将所有session数据存储在一个cookie签署
+        要求设置:attr:`secret_key`
         """
-        key = self.secret_key
+        key = self.secret_key  # 使用session的时候要设置一个密钥app.secret_key
         if key is not None:
             return SecureCookie.load_cookie(request, self.session_cookie_name,
                                             secret_key=key)
@@ -727,8 +803,18 @@ class Flask(object):
         return self.wsgi_app(environ, start_response)
 
 
+###################################################################
+#                     全局上下文变量定义(context locals)
+# 说明：
+#   - 此处全局的 g, session, 需要深入理解
+#   - 需要深入去看 werkzeug.LocalStack()的实现
+#   - 为了支持多线程
+#   - flask0.9之前，只有请求上下文，没有程序上下文
+#
+###################################################################
+
 # context locals
-_request_ctx_stack = LocalStack()
+_request_ctx_stack = LocalStack()  # 一个请求栈（数据结构），依赖 werkzeug.LocalStack 模块
 current_app = LocalProxy(lambda: _request_ctx_stack.top.app)
 request = LocalProxy(lambda: _request_ctx_stack.top.request)
 session = LocalProxy(lambda: _request_ctx_stack.top.session)

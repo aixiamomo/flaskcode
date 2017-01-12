@@ -55,9 +55,9 @@ from werkzeug.wsgi import SharedDataMiddleware        # Flask() 模块 中引用
 from werkzeug.utils import cached_property
 from werkzeug import create_environ    # 已失效
 
-# from werkzeug.routing import Map, Rule
-# from werkzeug.exceptions import HTTPException, InternalServerError
-# from werkzeug.contrib.securecookie import SecureCookie
+from werkzeug.routing import Map, Rule
+from werkzeug.exceptions import HTTPException, InternalServerError
+from werkzeug.contrib.securecookie import SecureCookie
 
 from werkzeug import abort, redirect      # werkzeug 依赖: 本文件未使用,但导入以用作 对外接口
 from jinja2 import Markup, escape         # jinja2 的依赖: 本文件未使用,但导入以用作 对外接口
