@@ -364,7 +364,7 @@ class Flask(object):
         #: be function names which are also used to generate URLs and
         #: the values are the function objects themselves.
         #: to register a view function, use the :meth:`route` decorator.
-        # 包含所有注册的视图函数的字典。
+        # 包含所有注册的视图函数的合集字典。
         # keys 是函数名称，也用于生成URL，而value是函数对象。
         # 要注册一个视图函数，使用：meth：`route`装饰器。
         self.view_functions = {}    # 视图函数字典
@@ -374,10 +374,10 @@ class Flask(object):
         #: should handle that error.
         #: To register a error handler, use the :meth:`errorhandler`
         #: decorator.
-        # 包含所有注册的错误处理程序的字典。
+        # 包含所有注册的错误处理程序的合集字典。
         # key 是错误代码，是一个整数，value是错误处理程序
         # 要注册错误处理程序，使用 meth：`errorhandler`装饰器。
-        self.error_handlers = {}          # 错误处理程序字典
+        self.error_handlers = {}          # 错误处理程序合集字典
 
         #: a list of functions that should be called at the beginning
         #: of the request before request dispatching kicks in.  This
@@ -414,12 +414,17 @@ class Flask(object):
         self.url_map = Map()            # 关键依赖：werkzeug.routing.Map
 
         if self.static_path is not None:    # 处理静态资源
+            #
+            # todo: 待深入 关键依赖：werkzeug.routing.Rule
             self.url_map.add(Rule(self.static_path + '/<filename>',
                                   build_only=True, endpoint='static'))
             if pkg_resources is not None:
                 target = (self.package_name, 'static')
             else:
                 target = os.path.join(self.root_path, 'static')
+
+            #
+            # todo: 待深入, 关键依赖: werkzeug.SharedDataMiddleware
             self.wsgi_app = SharedDataMiddleware(self.wsgi_app, {
                 self.static_path: target
             })
@@ -427,6 +432,9 @@ class Flask(object):
         #: the Jinja2 environment.  It is created from the
         #: :attr:`jinja_options` and the loader that is returned
         #: by the :meth:`create_jinja_loader` function.
+        # jinja2环境。
+        # 是从：attr：`jinja_options`和由：meth：`create_jinja_loader`函数返回的加载器loader创建的。
+        # todo: 待深入 jinja2 模板配置
         self.jinja_env = Environment(loader=self.create_jinja_loader(),
                                      **self.jinja_options)
         self.jinja_env.globals.update(
@@ -439,8 +447,13 @@ class Flask(object):
         the configured package is returned that looks up templates in the
         `templates` folder.  To add other loaders it's possible to
         override this method.
+
+        创建Jinja加载器。
+        默认情况下，只返回配置包的包装加载器，它在'templates'文件中查找。
+        要添加其他加载器，可以覆盖此方法
         """
         if pkg_resources is None:
+            # 加载 'templates' 目录文件
             return FileSystemLoader(os.path.join(self.root_path, 'templates'))
         return PackageLoader(self.package_name)
 
@@ -448,6 +461,8 @@ class Flask(object):
         """Update the template context with some commonly used variables.
         This injects request, session and g into the template context.
 
+        使用一些常用的变量更新模板上下文。
+        这将request，session和g注入到模板上下文中。
         :param context: the context as a dictionary that is updated in place
                         to add extra variables.
         """
@@ -455,6 +470,9 @@ class Flask(object):
         for func in self.template_context_processors:
             context.update(func())
 
+    #
+    # 对外运行接口：借用werkzeug.run_simple 实现
+    #
     def run(self, host='localhost', port=5000, **options):
         """Runs the application on a local development server.  If the
         :attr:`debug` flag is set the server will automatically reload
@@ -467,11 +485,15 @@ class Flask(object):
                         Werkzeug server.  See :func:`werkzeug.run_simple`
                         for more information.
         """
-        from werkzeug import run_simple
+        from werkzeug import run_simple     # todo: 待深入, 关键依赖: 核心运行模块
         if 'debug' in options:
             self.debug = options.pop('debug')
+
+        # setdefault(key[, default]) 如果key在字典中，返回其值。
+        # 如果不在，则插入值为default的key并返回default。default默认为None。
         options.setdefault('use_reloader', self.debug)
         options.setdefault('use_debugger', self.debug)
+
         return run_simple(host, port, self, **options)
 
     def test_client(self):
@@ -502,11 +524,18 @@ class Flask(object):
 
         :param resource: the name of the resource.  To access resources within
                          subfolders use forward slashes as separator.
+                        资源的名称。 要访问子文件夹中的资源，请使用正斜杠作为分隔符。
         """
         if pkg_resources is None:
             return open(os.path.join(self.root_path, resource), 'rb')
         return pkg_resources.resource_stream(self.package_name, resource)
 
+    #
+    # 关键接口: 创建 or 打开一个 会话(session)
+    #   - 实现方式: 使用 cookie 实现
+    #   - 默认把全部session数据, 存入一个 cookie 中.
+    #   - 对比 flask-0.4 版本, 部分重构
+    #
     def open_session(self, request):
         """Creates or opens a new session.  Default implementation stores all
         session data in a signed cookie.  This requires that the
@@ -523,6 +552,9 @@ class Flask(object):
             return SecureCookie.load_cookie(request, self.session_cookie_name,
                                             secret_key=key)
 
+    #
+    # 关键接口: 更新session
+    #
     def save_session(self, session, response):
         """Saves the session if it needs updates.  For the default
         implementation, check :meth:`open_session`.
@@ -535,9 +567,12 @@ class Flask(object):
         if session is not None:
             session.save_cookie(response, self.session_cookie_name)
 
+    # 添加路由规则, route() 装饰器的实现
     def add_url_rule(self, rule, endpoint, **options):
         """Connects a URL rule.  Works exactly like the :meth:`route`
         decorator but does not register the view function for the endpoint.
+
+        连接一个URL规则。工作像：meth:``route``装饰器，但不注册视图函数的端点。
 
         Basically this example::
 
@@ -552,17 +587,23 @@ class Flask(object):
             app.add_url_rule('index', '/')
             app.view_functions['index'] = index
 
-        :param rule: the URL rule as string
+        :param rule: the URL rule as string  与字符串一样的URL格式
         :param endpoint: the endpoint for the registered URL rule.  Flask
                          itself assumes the name of the view function as
-                         endpoint
+                         endpoint  注册URL格式的端点。Flask自身认定视图函数的名字为端点。
         :param options: the options to be forwarded to the underlying
                         :class:`~werkzeug.routing.Rule` object
+                        被指向底层（``class:~werkzeug.routing.Rule` object“）的选项。
         """
         options['endpoint'] = endpoint
         options.setdefault('methods', ('GET',))
+
+        # 路由规则添加
         self.url_map.add(Rule(rule, **options))
 
+    #
+    # 路由装饰器定义:
+    #
     def route(self, rule, **options):
         """A decorator that is used to register a view function for a
         given URL rule.  Example::
@@ -629,11 +670,14 @@ class Flask(object):
                         :class:`~werkzeug.routing.Rule` object.
         """
         def decorator(f):
-            self.add_url_rule(rule, f.__name__, **options)
-            self.view_functions[f.__name__] = f
+            self.add_url_rule(rule, f.__name__, **options)      # 添加路由规则
+            self.view_functions[f.__name__] = f                 # 更新视图函数合集字典
             return f
         return decorator
 
+    #
+    # 错误处理装饰器定义:
+    #
     def errorhandler(self, code):
         """A decorator that is used to register a function give a given
         error code.  Example::
@@ -653,7 +697,7 @@ class Flask(object):
         :param code: the code as integer for the handler
         """
         def decorator(f):
-            self.error_handlers[code] = f
+            self.error_handlers[code] = f   # 错误处理程序合集字典
             return f
         return decorator
 
