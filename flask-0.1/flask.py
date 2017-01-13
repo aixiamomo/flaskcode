@@ -367,7 +367,7 @@ class Flask(object):
         # 包含所有注册的视图函数的合集字典。
         # keys 是函数名称，也用于生成URL，而value是函数对象。
         # 要注册一个视图函数，使用：meth：`route`装饰器。
-        self.view_functions = {}    # 视图函数字典
+        self.view_functions = {}    # 视图函数合集字典
 
         #: a dictionary of all registered error handlers.  The key is
         #: be the error code as integer, the value the function that
@@ -478,6 +478,9 @@ class Flask(object):
         :attr:`debug` flag is set the server will automatically reload
         for code changes and show a debugger in case an exception happened.
 
+        在本地开发服务器上运行应用程序。
+        如果设置：attr：`debug`标志，服务器将自动重新加载代码更改，并显示一个调试器，以防发生异常。
+
         :param host: the hostname to listen on.  set this to ``'0.0.0.0'``
                      to have the server available externally as well.
         :param port: the port of the webserver
@@ -485,7 +488,7 @@ class Flask(object):
                         Werkzeug server.  See :func:`werkzeug.run_simple`
                         for more information.
         """
-        from werkzeug import run_simple     # todo: 待深入, 关键依赖: 核心运行模块
+        from werkzeug import run_simple     # todo: 待深入, 关键依赖，核心运行模块
         if 'debug' in options:
             self.debug = options.pop('debug')
 
@@ -572,7 +575,7 @@ class Flask(object):
         """Connects a URL rule.  Works exactly like the :meth:`route`
         decorator but does not register the view function for the endpoint.
 
-        连接一个URL规则。工作像：meth:``route``装饰器，但不注册视图函数的端点。
+        连接一个URL规则。工作原理类似于：meth:``route``装饰器，但不注册视图函数的端点。
 
         Basically this example::
 
@@ -593,7 +596,7 @@ class Flask(object):
                          endpoint  注册URL格式的端点。Flask自身认定视图函数的名字为端点。
         :param options: the options to be forwarded to the underlying
                         :class:`~werkzeug.routing.Rule` object
-                        被指向底层（``class:~werkzeug.routing.Rule` object“）的选项。
+                        选项被转发到底层（``class:~werkzeug.routing.Rule` object）
         """
         options['endpoint'] = endpoint
         options.setdefault('methods', ('GET',))
@@ -701,38 +704,58 @@ class Flask(object):
             return f
         return decorator
 
+    # 注册预处理函数
     def before_request(self, f):
         """Registers a function to run before each request."""
         self.before_request_funcs.append(f)
         return f
 
+    # 注册清理函数
     def after_request(self, f):
         """Register a function to be run after each request."""
         self.after_request_funcs.append(f)
         return f
 
+    #
+    # 请求结束, 清理工作:
+    #   - 注册清理函数
+    #
     def context_processor(self, f):
         """Registers a template context processor function."""
         self.template_context_processors.append(f)
         return f
 
+    #
+    # 请求匹配:
+    #
     def match_request(self):
         """Matches the current request against the URL map and also
         stores the endpoint and view arguments on the request object
         is successful, otherwise the exception is stored.
+
+        使当前请求和URL映射匹配，并存储endpoint和请求对象上的视图参数，
+        否则将存储exception
         """
         rv = _request_ctx_stack.top.url_adapter.match()
         request.endpoint, request.view_args = rv
         return rv
 
+    #
+    # 处理（分发）请求:
+    #   - 处理 路由URL 和 对应的 视图函数
+    #
     def dispatch_request(self):
         """Does the request dispatching.  Matches the URL and returns the
         return value of the view or error handler.  This does not have to
         be a response object.  In order to convert the return value to a
         proper response object, call :func:`make_response`.
+
+        请求分发，匹配URL并返回view or error处理程序的返回值。
+        这不必是一个响应对象，为了将返回值转换成一个适当的相应对象，
+        请调用：func:`make_response`.
         """
         try:
-            endpoint, values = self.match_request()
+            endpoint, values = self.match_request()     # 请求匹配
             return self.view_functions[endpoint](**values)
         except HTTPException, e:
             handler = self.error_handlers.get(e.code)
@@ -745,46 +768,68 @@ class Flask(object):
                 raise
             return handler(e)
 
+    # 返回响应
     def make_response(self, rv):
         """Converts the return value from a view function to a real
         response object that is an instance of :attr:`response_class`.
+
+        将视图函数的返回值转换为真是的相应对象，
+        该响应对象是 attr:`response_class` 的实例。
 
         The following types are allowd for `rv`:
 
         ======================= ===========================================
         :attr:`response_class`  the object is returned unchanged
+                                该对象不变地返回
+
         :class:`str`            a response object is created with the
                                 string as body
+                                将使用字符串作为主体创建响应对象
+
         :class:`unicode`        a response object is created with the
                                 string encoded to utf-8 as body
+                                将使用编码为utf-8的字符串作为主体创建响应对象
+
         :class:`tuple`          the response object is created with the
                                 contents of the tuple as arguments
+                                将使用元组的内容作为参数创建响应对象
+
         a WSGI function         the function is called as WSGI application
                                 and buffered as response object
+                                这个函数叫做WSGI应用和缓冲响应对象
         ======================= ===========================================
 
         :param rv: the return value from the view function
         """
         if isinstance(rv, self.response_class):
             return rv
-        if isinstance(rv, basestring):
+        if isinstance(rv, basestring):  # basestring包括了str和unicode
             return self.response_class(rv)
         if isinstance(rv, tuple):
             return self.response_class(*rv)
         return self.response_class.force_type(rv, request.environ)
 
+    #
+    # 分发请求前, 执行预处理工作:
+    #
     def preprocess_request(self):
         """Called before the actual request dispatching and will
         call every as :meth:`before_request` decorated function.
         If any of these function returns a value it's handled as
         if it was the return value from the view and further
         request handling is stopped.
+
+        在实际请求分发前，将调用每个被:meth:`before_request` 装饰的函数。
+        如果这些函数返回一个值，这个值会被处理，就像视图函数返回的值，进一步的请求处理被停止。
         """
         for func in self.before_request_funcs:
             rv = func()
             if rv is not None:
                 return rv
 
+    #
+    # 在返回响应前, 作 清理工作, 与上配对
+    #
     def process_response(self, response):
         """Can be overridden in order to modify the response object
         before it's sent to the WSGI server.  By default this will
@@ -796,14 +841,21 @@ class Flask(object):
         """
         session = _request_ctx_stack.top.session
         if session is not None:
-            self.save_session(session, response)
-        for handler in self.after_request_funcs:
-            response = handler(response)
-        return response
+            self.save_session(session, response)        # 保存 session
 
+        for handler in self.after_request_funcs:        # 请求结束后，对响应进行一些工作
+            response = handler(response)
+        return response                                 # 返回响应
+
+    #
+    # 对外接口:
+    #
     def wsgi_app(self, environ, start_response):
         """The actual WSGI application.  This is not implemented in
         `__call__` so that middlewares can be applied:
+
+        实际的WSGI应用程序。这并不是在“__call__”中实现,所以这样可以应用中间件)
+
 
             app.wsgi_app = MyMiddleware(app.wsgi_app)
 
@@ -812,19 +864,27 @@ class Flask(object):
                                a list of headers and an optional
                                exception context to start the response
         """
-        with self.request_context(environ):
-            rv = self.preprocess_request()
+        with self.request_context(environ):             # 请求上下文
+            rv = self.preprocess_request()              # 分发请求前，预处理
             if rv is None:
-                rv = self.dispatch_request()
-            response = self.make_response(rv)
-            response = self.process_response(response)
+                rv = self.dispatch_request()            # 处理请求
+
+            response = self.make_response(rv)           # 返回响应
+            response = self.process_response(response)  # 返回响应，做清理工作
+
             return response(environ, start_response)
 
+    #
+    # 请求上下文
+    #
     def request_context(self, environ):
         """Creates a request context from the given environment and binds
         it to the current context.  This must be used in combination with
         the `with` statement because the request is only bound to the
         current context for the duration of the `with` block.
+
+        从给定环境创建请求上下文并将其绑定在当前上下文。
+        这必须与'with'语句结合使用，因为请求只在`with`块的持续时间内绑定到当前上下文。
 
         Example usage::
 
@@ -861,5 +921,6 @@ class Flask(object):
 _request_ctx_stack = LocalStack()  # 一个请求栈（数据结构），依赖 werkzeug.LocalStack 模块
 current_app = LocalProxy(lambda: _request_ctx_stack.top.app)
 request = LocalProxy(lambda: _request_ctx_stack.top.request)
+
 session = LocalProxy(lambda: _request_ctx_stack.top.session)
 g = LocalProxy(lambda: _request_ctx_stack.top.g)
