@@ -405,7 +405,7 @@ class Flask(object):
         #: that the template context is updated with.
         #: To register a function here, use the :meth:`context_processor`
         #: decorator.
-        # 无参数调用的函数列表，用于填充模板上下文的。 每个返回一个字典更新模板上下文。
+        # 无参数的函数列表，用于填充模板上下文的。 每个函数返回一个字典更新模板上下文。
         # 要在这里注册一个函数，使用：meth:'context_processor'
         # 下面默认添加了模板上下文处理器（注入模板中的全局对象）：request,session,g
         self.template_context_processors = [_default_template_ctx_processor]
@@ -449,7 +449,7 @@ class Flask(object):
         override this method.
 
         创建Jinja加载器。
-        默认情况下，只返回配置包的包装加载器，它在'templates'文件中查找。
+        默认情况下，只返回配置包的包装加载器，它在'templates'文件夹中查找模板。
         要添加其他加载器，可以覆盖此方法
         """
         if pkg_resources is None:
@@ -461,7 +461,7 @@ class Flask(object):
         """Update the template context with some commonly used variables.
         This injects request, session and g into the template context.
 
-        使用一些常用的变量更新模板上下文。
+        使用一些常用的变量更新(update)模板上下文。（其实就是添加上下文这个字典的成员）
         这将request，session和g注入到模板上下文中。
         :param context: the context as a dictionary that is updated in place
                         to add extra variables.
@@ -717,8 +717,7 @@ class Flask(object):
         return f
 
     #
-    # 请求结束, 清理工作:
-    #   - 注册清理函数
+    # 模板上下文处理函数
     #
     def context_processor(self, f):
         """Registers a template context processor function."""
