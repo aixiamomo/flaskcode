@@ -127,7 +127,7 @@ class Response(ResponseBase):       # 未独立实现，依赖 werkzeug.Response
 
     默认情况下使用的响应对象。
     就像Werkzeug的响应对象，但默认设置了一个HTML文件类型。
-    通常你不必自己创建这个对象，因为 :meth:`~flask.Flask.make_response` 会为你照顾它(这个相应对象)
+    通常你不必自己创建这个对象，因为 :meth:`~flask.Flask.make_response` 会为你照顾它(这个响应对象)
     """
     default_mimetype = 'text/html'
 
@@ -258,7 +258,9 @@ def _default_template_ctx_processor():  # 默认的模板上下文处理器
 
 
 def _get_package_path(name):  # 获取模块包的路径，在Flask()中引用
-    """Returns the path to a package or cwd if that cannot be found."""
+    """Returns the path to a package or cwd if that cannot be found.
+    返回安装包或者cwd命令。
+    """
     try:
         return os.path.abspath(os.path.dirname(sys.modules[name].__file__))
     except (KeyError, AttributeError):
@@ -497,15 +499,17 @@ class Flask(object):
         options.setdefault('use_reloader', self.debug)
         options.setdefault('use_debugger', self.debug)
 
-        return run_simple(host, port, self, **options)
+        return run_simple(host, port, self, **options)  # 传入自身
 
     def test_client(self):
         """Creates a test client for this application.  For information
         about unit testing head over to :ref:`testing`.
+        自带测试客户端。来源自werkzeug。
         """
         from werkzeug import Client
         return Client(self, self.response_class, use_cookies=True)
 
+    # 打开项目目录中的文件。
     def open_resource(self, resource):
         """Opens a resource from the application's resource folder.  To see
         how this works, consider the following folder structure::
@@ -547,8 +551,8 @@ class Flask(object):
         :param request: an instance of :attr:`request_class`.
 
         创建or打开一个新session，
-        默认实现将所有session数据存储在一个cookie签署
-        要求设置:attr:`secret_key`
+        默认实现将所有session中的数据存储在一个cookie中
+        这要求设置:attr:`secret_key`
         """
         key = self.secret_key  # 使用session的时候要设置一个密钥app.secret_key
         if key is not None:
@@ -853,9 +857,7 @@ class Flask(object):
         """The actual WSGI application.  This is not implemented in
         `__call__` so that middlewares can be applied:
 
-        实际的WSGI应用程序。这并不是在“__call__”中实现,所以这样可以应用中间件)
-
-
+        实际的WSGI App。这并不是在“__call__”中实现,所以这样可以应用中间件)
             app.wsgi_app = MyMiddleware(app.wsgi_app)
 
         :param environ: a WSGI environment
