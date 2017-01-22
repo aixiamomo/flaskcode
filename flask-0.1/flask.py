@@ -144,11 +144,11 @@ class _RequestContext(object):      # 请求上下文，在flask.request_context
 
     这个请求上下文包含了所有请求相关的信息。
     请求上下文创建在请求开始时，并且推入'_request_ctx_stack'中，最后删除。
-    它将创建URL 适配器，并为 WSGI environment 提供 request 对象。
+    它将创建URL adapter，并为 WSGI environment 提供 request 对象。
     """
 
     def __init__(self, app, environ):
-        self.app = app
+        self.app = app  # app是Flask实例
         self.url_adapter = app.url_map.bind_to_environ(environ)
         self.request = app.request_class(environ)
 
