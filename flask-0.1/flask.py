@@ -865,7 +865,7 @@ class Flask(object):
                                a list of headers and an optional
                                exception context to start the response
         """
-        with self.request_context(environ):             # 请求上下文
+        with self.request_context(environ):             # 封装传入的environ，创建请求上下文
             rv = self.preprocess_request()              # 分发请求前，预处理
             if rv is None:
                 rv = self.dispatch_request()            # 处理请求
